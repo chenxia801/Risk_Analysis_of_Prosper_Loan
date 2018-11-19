@@ -1,0 +1,755 @@
+Prosper Loan Analysis using R
+=======================================================
+#### By Xia Chen, 2018-11-01, Toronto
+
+# 1.Introduction
+>Prosper is America's first marketplace peer-to-peer lending platform, with over $12 billion in funded loans. This data set contains 113,937 loans with 81 variables on each loan, including loan amount, borrower rate (or interest rate), current loan  status, borrower income, borrower employment status, borrower credit score, etc.
+
+>In this project, an Exploratory Data Analysis (EDA) for the Prosper loan data set from 2005-2014  was conducted, in order to dig out some inspiring and valuable insights about the features that can affect the loan status. 
+
+#### The outline of this project is:
+  
+>1.  Introduction
+2.  Exploratory Data Analysis
+2.1 Univariate Plots Section
+2.2 Univariate Analysis
+2.3 Bivariate Plots Section
+2.4 Bivariate Analysis
+2.5 Multivariate Plots Section
+2.6 Multivariate Analysis
+3.  Final Plots and Summary
+4.  Reflection
+
+## 1.1 Install R packages
+
+>In this analysis, I used 9 packages for data manipulation, data visulization and correlation analysis. 
+>The name are below:
+ggplot2, date, dplyr, gridExtra, scales, choroplethrMaps, chroplethr, GGally, knitr.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(date)
+library(GGally)
+library(gridExtra)
+library(scales)
+library(choroplethrMaps, quietly =TRUE)
+library(choroplethr, quietly = TRUE)
+library(rmarkdown)
+knitr::opts_chunk$set(error = TRUE)
+
+```
+
+## 1.2 Load data
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+loan<-read.csv('C:/Users/admin/Documents/R/prosperLoanData.csv')
+
+```
+
+>The Prosper loan data contains 113,937 loans that were issued through 2005-2014, with 81 variables for each loan. 
+The key feature is the loan status which could help investors estimate the default risk of borrowers.
+The interesting features that might affect the loan status could from numerical variables,
+including borrower rate,monthly income,loan amount, credit score, term of the loan, total prospers loans.
+The fetures could also from and categorical variables, including employment status, loan purpose, home ownership, borrower state.
+
+# 2. Exploratory Data Analysis
+
+# 2.1 Univariate Plots Section
+
+>In this section, I want to start exploring the data by reviewing some basic values and descriptive statistics. 
+The fetures that I am interested to investigate are below:
+
+### 2.1.1 Loan term
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(Term),data=loan)+
+  geom_bar(stat="count")+
+  ggtitle("Terms of Loan")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(x="term (month)")
+  
+```
+
+- The time length of the laon might affect the borrowers' ability to pay off the bill. The graph below showes the number of 36-month loans is much greater than 60-month and 12-month loans.
+
+### 2.1.2 Loan Status
+
+>In risk management one important job is to build a predictive model to  predict whether the loan will be default or not. 'delinquent', 'default' and 'charge off' are terms helping investor to estimate whether or not they can expect to collect on the outstanding debt at all. According to the definition of delinquencies from [badcredit.org](https://www.badcredit.org/delinquencies-defaults-charge-offs-whats-difference/), an account will be considered severely deliquent if no payment has been received 60 days beyond the due date.Those delinquent accounts may have higher risk of default.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanStatus),data=loan)+
+  geom_bar(stat="count")+
+  ggtitle("Loan Status")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  coord_flip()
+```
+
+
+
+### 2.1.3 Define delinquent borrower
+
+>So I created a new variable 'DelinquentBorrowers' using '0' to represent none deliquent borrowers and '1' to represent deliquent borroweres, including loans that are noted default,  charged off, and past due over 60 days. According to [LendingClub](https://help.lendingclub.com/hc/en-us/articles/216127747-What-is-the-difference-between-a-loan-that-is-in-default-and-a-loan-that-has-been-charged-off-), In general, a note goes into Default status  when it is 121 or more days past due. When a note is in Default status,  Charge Off occurs no later than 150 days past due (i.e. No later than 30  days after the Default status is reached) when there is no reasonable  expectation of sufficient payment to prevent the charge off.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# define delinquent borrowers
+loan$DelinquentBorrowers <- ifelse(
+loan$LoanStatus == "Defaulted" |
+loan$LoanStatus == "Chargedoff" |
+loan$LoanStatus == "Past Due (61-90 days)" |
+loan$LoanStatus == "Past Due (91-120 days)" |
+loan$LoanStatus == "Past Due (>120 days)", 
+ 1, 0)
+ggplot(aes(DelinquentBorrowers, fill=DelinquentBorrowers),data=loan)+
+  geom_bar(stat="count")+
+  ggtitle('Delinquent borrowers')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- There is a high proportion of borrowers who are currently delinquent at least once. But the table summarized that only 15.5% of borrowers have severe delinquent records. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# calculate percentage of deliquencies
+percent_delinquent<-loan%>%
+                  filter(!is.na(DelinquentBorrowers))%>%
+                 group_by(DelinquentBorrowers)%>%
+                 summarise(counts=n())%>%
+                 mutate(Percentage=counts/sum(counts)*100)
+percent_delinquent 
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(CurrentDelinquencies),data=loan)+
+  geom_bar(stat="count")+
+  xlim(0,15)+
+  ylim(0,15000)+
+ggtitle("Current deliquent")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.1.4 Borrower's credit score
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ProsperScore),data=loan)+
+ geom_bar(stat="count")+
+ ggtitle("Borrowers' prosper score")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- People's credit score is similar to a normal distribution. Most people's credit score ranges between 4-8. 
+
+### 2.1.5 Borrower's interest rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p1<-ggplot(aes(BorrowerRate),data=loan)+
+  geom_histogram()+
+  ggtitle("Borrowers' interest rate")
+
+p2<-ggplot(aes(BorrowerAPR),data=loan)+
+  geom_histogram()+
+  ggtitle("Borrowers' annual percentage rate")
+ grid.arrange(p1, p2, ncol=1)
+```
+
+- Borrower's APR and interest are similar, but APR is slightly higher than interest rate because APR is the combination of the nominal interest rate and any other costs or fees involved in procuring the loan, according to [Investopedia](https://www.investopedia.com/terms/a/apr.asp)
+
+### 2.1.6 Loan purpose
+
+>The loan categories are give as numerical variables, in order to investigate the correlation of loan purpose with other features, the 'ListingCategory' column was coverted into categorical variable.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#change column name
+colnames(loan)[colnames(loan)=="ListingCategory..numeric."]<- "ListingCategory"
+
+#creat new column of loan categories
+loan$NewListingCat<-cut(loan$ListingCategory, breaks=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21),
+                        labels=c( 'Not Available', 'Debt Consolidation', 'Home Improvement',  'Business', 'Personal Loan', 'Student Use',  'Auto', 'Other', 'Baby&Adoption', 'Boat', 'Cosmetic Procedure', 'Engagement Ring', 'Green Loans', 'Household Expenses', 'Large Purchases', 'Medical/Dental', 'Motorcycle', 'RV', 'Taxes','Vacation','Wedding Loans'), right=FALSE)
+
+ggplot(aes(NewListingCat),data=loan)+
+ggtitle('Loan Purpose')+
+  coord_flip()+
+  geom_bar(stat="count")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- From the chart above,debt consolidation is the main purpose of the loan. So next we can explore the available bank credit and number of loans of the borrowers. 
+
+### 2.1.7 Borrower's other loans
+
+>Some people may have used most of their bank credit because they only have very small amount of available credit, or some people may only have use less than 10 % of their bank credit because their available credit is large. Most people only have one prosper loan. they might borrow money from prosper loan for some extrem situation. We can dig into those in later session.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p1<-ggplot(aes(BankcardUtilization),data=loan)+
+  geom_histogram()+
+  xlim(0,1)+
+  ggtitle("Borrowers's bank credit utilization")
+p2<-ggplot(aes(AvailableBankcardCredit),data=loan)+
+  geom_histogram()+
+  xlim(0,50000)+
+  ggtitle("Borrowers's available bank credit")
+
+p3<-ggplot(aes(TotalProsperLoans),data=loan)+
+  geom_histogram()+
+  xlim(0,5)+
+  ggtitle(" Numberof Borrowers' Prosper loans")
+ grid.arrange(p1, p2,p3, ncol=1)
+```
+
+
+### 2.1.8 Home ownership
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(IsBorrowerHomeowner),data=loan)+
+  geom_bar(stat="count")+
+  ggtitle('Homeowner of the loan borrowers')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Half of the borrowers are home owner. Unfortunatly, the chart of loan purpose does not contain mortgage, but only home improvement. So we have no clue if the loan is for the purpose of mortgage. In later session we can look at how the home owership affects the loan status.
+
+### 2.1.9 Borrowers' income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(IncomeRange),data=loan)+
+  geom_histogram(stat="count")+
+  ggtitle('Borrowers income range')+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- People with income range 25,000-50,000 top Borrowers.
+
+### 2.1.10 Debt to income ratio
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(DebtToIncomeRatio),data=subset(loan, !is.na(DebtToIncomeRatio)))+
+  geom_histogram()+
+  ggtitle("Debt to income ratio")+
+  xlim(0, 1)+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.1.11 Prosper Loan Amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(LoanOriginalAmount),data=loan)+
+  geom_histogram()+
+  ggtitle("Original amount of prosper loan ")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(ProsperPrincipalBorrowed),data=loan)+
+  geom_histogram()+
+  ggtitle("Principal amount of prosper loans borrowed ")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+ 
+- The prosper loan are mainly small loan.Even for those borrowers who have borrowed money from prospers multiply times, the total amount borrowed on Prosper are mostly below 2000.
+
+### 2.1.12 Employment status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(EmploymentStatus),data=subset(loan, !is.na(EmploymentStatus)))+
+  geom_bar(stat="count")+
+  coord_flip()+
+  ggtitle('Employment status')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.1.13 Loan volume issued by time
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Change format of data
+loan$LoanCreationDate<- as.Date(loan$ListingCreationDate, formate="%m/%d/%Y")
+# plot loan volume over time
+ggplot(aes(LoanCreationDate), data=loan)+
+  geom_bar(stat="count")+
+  ggtitle('Loan volume over time')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+ 
+- From 2005 to 2014, the number of Prosper loans incresed over time. except the 2009, maybe the data for 2009 is missing.
+
+## 2.2 Univariate Analysis
+
+### What is the structure of your dataset?
+>There are 113937 observations of 81 variables. Data types including 'factor', 'num', and'int. Variables are about loan information and borrowers' information
+
+### What is/are the main feature(s) of interest in your dataset?
+>From an investors's perspective, they would be interested in any features that might predict the risk of default from the borrowers. Those features could be the purpose of the loan, loan amont, loan status, the employment status, the borrowers' creadit score,the borrowers's income range, the number ofloans they have, the debt to income ratio, the number of account deliquent.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest? 
+>To study the borrower interest rate and loan status, I included  ListingCreationDate, bank credit utilization, AvailableBankcardCredit, StatedMonthlyIncome and  DebtToIncomeRatio.The borrower state could be intesting feature to explore because the average income varies from state to state. The homeowner might have higher risk of default, the employment status, employment status duration could also tell if the borrowers are able to pay off the loan ontime. 
+
+### Did you create any new variables from existing variables in the dataset?
+>In order to investigate the loan amount over time. I created a new column named 'LoanCreationDate' in the format of '%m/%d/%Y'. Also, to investigate the purpose of the loan, I created a new column named  'NewLisingCat' to convert the numerical category of loan into categorical variables. Another new column named DelinquentBorrowers is also created to categorize the deliquent and none deliquent loans.
+
+### Of the features you investigated, were there any unusual distributions? 
+>For the debt to income ratio, there is an outlier at ratio 10.01, which does not make sense. Also the column name of ListingCreationDate is weired, so I renamed the column name.
+
+
+# Bivariate Plots Section
+
+### 2.3.1 Scatterplot matrices
+
+>Scatter matrix plot is a fast way to provide us insight of the correlation between multiple paired variables at once. So the ggpairs function was used to get a general idea of the  correlations amoung the variables. The scatter matrix shows that the credit grade is  clearly one factor affect the interest rate. The correlation  coefficient of other variables with the interest rate are very small,  therefore, will be excluded from the predictive model.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, correlation_plot, fig.width=15, fig.height=8}
+set.seed(1836)
+loan_subset<-loan[,c(5,9,16,21,36,42,43,47,50,52,58,64,82)]
+ggpairs(loan_subset[sample.int(nrow(loan_subset), 1000),])+
+ggtitle('Correlation between features of interest')+
+theme(plot.title = element_text(hjust = 0.5))
+
+```
+ 
+- I expected that there would be a strong correlation between Prosper score, borrower rate,  deliquent borrower,monthly income.  I dont't see such trends, but there is median correlation between borrower rate and prosper socre.
+
+### 2.3.2 Interest rate over time
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loan$LoanCreationYear<- format(as.Date(loan$ListingCreationDate), "%Y")
+ggplot(aes(x=LoanCreationYear, y=BorrowerRate), data=loan)+
+  geom_boxplot()+
+  ggtitle('Interest rate over time')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- The yearly borrower rate varies year by year, there is no increasing or decreasing trend over time. 
+
+### 2.3.3 Loan amount change over time.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ loan$year<-as.Date(cut(loan$LoanCreationDate, breaks="year"))
+loan$month<-as.Date(cut(loan$LoanCreationDate, breaks="month"))
+ p3<- ggplot(aes(x=month, y=LoanOriginalAmount), data=loan)+
+      stat_summary(geom="point", fun.y=mean)+
+      geom_smooth(aes(month))+
+      scale_x_date(labels=date_format("%Y"), breaks="12 month")+
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+      ggtitle('Average loan amount by month')
+
+
+  
+p4<-ggplot(aes(x=month, y=LoanOriginalAmount), data=loan)+
+    stat_summary(geom="point", fun.y=sum)+
+    scale_x_date(labels=date_format("%Y"), breaks="12 month")+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    ggtitle('Total loan amount by month')
+
+  grid.arrange(p3, p4, ncol=2)
+``` 
+
+- In the univariate analysis session, we know that the loan volume increased by years, so it make sense that the total amount of loan increases over time. The average loan amount also tells an sharp increase of loan amount since 2009. Maybe because Prosper became more and more popular.
+
+### 2.3.4  Loan amount vs. loan purpose
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+  ggplot(aes(x=NewListingCat, y=LoanOriginalAmount), data=loan)+
+    geom_boxplot()+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    ggtitle('loan purpose vs. loan amount')+
+    theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+- People borrow large amount of loan for debt consolidation, baby&adoption and wedding. 
+
+### 2.3.5 Loan amount vs employment status
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=EmploymentStatus, y=LoanOriginalAmount), data=loan)+
+    geom_boxplot()+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    ggtitle('Employment status vs. Loan amount')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=EmploymentStatusDuration, y=LoanOriginalAmount), data=loan)+
+    geom_point(alpha=1/10, position=position_jitter(h=0))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    ggtitle('Employment status duration vs. Loan amount')+
+    theme(plot.title = element_text(hjust = 0.5))
+```
+
+- People who borrower higher amount of loan are employed. For those people whoes loans are below 10000 tend to have shorter employment duration. 
+
+### 2.3.6 Credit score vs.Monthly income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=ProsperScore, y=StatedMonthlyIncome), data=subset(loan, !is.na(ProsperScore)))+
+  stat_summary(geom="bar", fun.y=mean)+
+  ylim(0,15000)+
+  ggtitle('Prosper score vs. Monthly income')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- By average, people with higer monthly income have higher credit rating on Prosper loan.
+
+
+### 2.3.7 Debt-to-income ratio vs. Monthly income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=DebtToIncomeRatio, y=StatedMonthlyIncome), data=subset(loan, !is.na(ProsperScore)))+
+  stat_summary(geom="bar", fun.y=mean)+
+  ylim(0,15000)+
+  xlim(0,1)+
+  ggtitle('Debt-to-incom-ratio vs. Monthly income')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- By average, people with higer monthly income have lower debt-to-income ratio on Prosper loan.
+
+### 2.3.8 Borrower Rate vs. Loan  Amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes( x=BorrowerRate, y=LoanOriginalAmount), data=loan)+
+  geom_point(alpha=0.1,  position=position_jitter(h=0))+
+  ggtitle('Borrower rate vs. Loan  amount')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- There is no trend that higher loan amount would have higher interest rate.
+
+### 2.3.9  Debt-to-income ratio vs. Loan amount 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+##monthly income  vs. debt-to-income ratio
+  ggplot(aes(x=LoanOriginalAmount , y=DebtToIncomeRatio), data=loan)+
+  geom_point(alpha=0.1,  position=position_jitter(h=0))+
+  ylim(0,1)+
+  ggtitle('Loan amount  vs. Debt-to-income ratio')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Again there is no trend indicate that higher debt to income ratio would borrow more money.
+
+### 2.3.10  Geographical distribution of loans 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data(state.regions)
+loan<-merge(loan, state.regions, by.x="BorrowerState", by.y="abb")
+
+loan_by_state<-loan %>%
+              group_by(region)%>%
+              filter(region != "NA") %>% 
+              na.omit()%>%
+              summarise(value=sum(LoanOriginalAmount, na.rm=TRUE))
+
+p8<-state_choropleth(loan_by_state, title="Loan amount by state", num_colors=9)
+
+loan_volume_by_state<-loan %>%
+group_by(region)%>%
+  filter(region != "NA") %>% 
+  na.omit()%>%
+  summarise(value=n())
+
+
+p9<-state_choropleth(loan_volume_by_state, title="Loan volume by state", num_colors=9)
+
+grid.arrange(p8,p9, ncol=1)
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+loan_mean_by_state<-loan %>%
+  group_by(region)%>%
+  filter(region != "NA") %>% 
+  na.omit()%>%
+  summarise(value=mean(LoanOriginalAmount))
+
+p10<-state_choropleth(loan_mean_by_state, title="Loan mean by state", num_colors=9)
+
+deliquencies_by_state<-loan %>%
+  group_by(region)%>%
+  filter(region != "NA") %>% 
+  na.omit()%>%
+  summarise(value=sum(DelinquentBorrowers))
+
+p11<-state_choropleth(deliquencies_by_state, title="Deliquencies by state", num_colors=9)
+
+
+grid.arrange(p10,p11, ncol=1)
+
+```
+
+- From a geographical perspective California, Texas, New York, Florida and Illinois have the largest dollar amounts and volumes of loans. The delinquent loans is geographically consistent with the high volume and large amount of the loan.  But the average loan amount is higher in states Alaska and South Carolina
+
+
+# Bivariate Analysis
+
+>1. The loans borrowed from Prosper are small loans. The main purpose of the loans is for debt consolidation. People s who are employed with shoter employment peoride are more likely to borrow money from Prosper. Borrower with higher monthly income have higher prosper score and lower debt-to-income ratio. 
+
+>2. Borrower with same loan amount have very spread borrower rate. So the borrower rate might be depend on other features, such as the borrower's income, employment status, loan purpose.
+
+>3. The strongest relationship I found is the Prosper score vs. monthly income, and Debt-to-income ratio vs. monthly income. Borrower with higher monthly income have higher prosper score and lower debt-to-income ratio. 
+
+# Multivariate Plots Section
+
+
+### 2.4.1 Homeownership vs. Loan amount
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+ggplot(aes(x=IsBorrowerHomeowner, y=LoanOriginalAmount,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  ggtitle('Homeownership vs. Loan amount')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- There is no big difference for delinquent borrowers if they are home ower or not.
+
+### 2.4.2 Monthly income vs. Loan amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=StatedMonthlyIncome, y=LoanOriginalAmount,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 15000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  ggtitle('Monthly income vs. Loan amount')+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+- Delinquent borrower tend to have lower montly income. Interestingly, lower income borowers tend to have lower loan amount, and People with higher income tend to borrow more money. 
+
+
+### 2.4.3 Monthly income vs. Prosper score
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=ProsperScore, y=StatedMonthlyIncome,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_y_continuous(limits = c(0, 15000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  ggtitle('Monthly income vs. Prosper score')+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+-In the Bivariable analysis session, I found that Borrower with higher income have higher Prosper score. This is consistent with this plot that delinquent borrowers have lower income. But delinquent borrowers are not always those with lower Prosper score. 
+
+
+### 2.4.4 Prosper score vs. Borrower rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=ProsperScore, y=BorrowerRate,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 11)) +
+  scale_y_continuous(limits = c(0, 0.5)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  ggtitle('Prosper score vs. Borrower rate')+
+  theme(plot.title = element_text(hjust = 0.5))
+  
+```
+
+- Delinquent Borrower tend to have higher borrower rate. While higher Prosper rating borrowers have lower borrower rate. So high borrower rate might cause deliquency, then deliquency could lower the borrower's credit score. We can investigate this further. 
+
+### 2.4.5 Loan purpose vs. Monthly income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=NewListingCat, y=StatedMonthlyIncome,
+       color = factor(DelinquentBorrowers)), data=loan) +
+  ylim(0,15000)+
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  ggtitle(' Loan purpose vs. Monthly income')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Borrowers for business, personal loan, and student use have very high delinquent loans. Unfortunately, the loan purpose for borrower with highest delinquencies are not available.
+
+### 2.4.6 Bank card utilization vs. Available Bankcard Credit
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BankcardUtilization, y=AvailableBankcardCredit,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 50000))+
+  scale_y_log10()+
+  labs(y="AvailableBankcardCredit/log()")+
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  ggtitle(' Bank card utilization vs. Available Bankcard Credit')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Unexpectely,the bank card utilization and avilable band credit do not affect the borrower's deliquencies, by ploting the log value of the available credit, there was till no pattern showing strong correlation between the two variables. 
+
+### 2.4.7 Employment status vs. Borrower Rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=EmploymentStatus, y=BorrowerRate,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_y_continuous(limits = c(0, 0.5)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  ggtitle(' Employment status vs. Borrower Rate')+
+   theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+- The  employment status of highly delinquent borrowers are unknown, but there is a clear trend that higher borrower rate would lead to high delinquencies.
+
+### 2.4.8 Debt to income ratio vs. Loan amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=DebtToIncomeRatio, y=LoanOriginalAmount,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 50000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  ggtitle(' Debt to income ratio vs. Loan amount')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Interestingly, delinquent borrowers are small loan borrowers. Also, delinquent borrowers tend to have higher Debt-to-income ratio. 
+
+### 2.4.9 Borrower rate vs. Loan amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate, y=LoanOriginalAmount,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 0.5)) +
+  scale_y_continuous(limits = c(0, 50000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+   theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+   ggtitle(' Borrower rate vs. Loan amount')+
+   theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Higher borrower rate tend to lead lower loan amount and higher delinquencies.
+
+
+### 2.4.10 Borrower rate vs. monthly income
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate, y=StatedMonthlyIncome,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 0.5)) +
+  scale_y_continuous(limits = c(0, 50000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+   theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+   ggtitle(' Borrower rate vs. Monthly income')+
+   theme(plot.title = element_text(hjust = 0.5))
+```
+
+- Again, delinquent borrowers have lower onthly income and higher borrower rate.
+
+### 2.4.11 Borrower rate vs. Debt-to-income ratio
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=DebtToIncomeRatio, y=BorrowerRate,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 0.5)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  ggtitle(' Borrower rate vs. Debt-to-income ratio')+
+ theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+# Multivariate Analysis
+
+>1. Borrower rate is related to prosper score, higher borrower rate leads to lower Prosper score. Delinquent borrowers might due to higher borrower rate.
+>2. At the begining, I assumed employment status and loan purpose are two very important features that could help predict the default risk, however, there are large proportion of missing values for employment status and loan purpose. 
+>3. Deliquent borrowers are small loan borrowers. Also, deliquent borrowers tend to have higher Debt-to-income ratio. 
+
+
+------
+
+# Final Plots and Summary
+### Plot One
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(aes(NewListingCat),data=loan)+
+  ggtitle('Loan Purpose')+
+  coord_flip()+
+  geom_bar(stat="count")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Description One
+
+>It is interesting to know that Debt Consolidation is the main purpose for loan borrowers. But we can als see from the plot that there is a large portion of loan purpose noted as 'other' and 'not available'. So we can remove these twoo categories to investigate the relation between deliquencies and loan purpose.  
+
+### Plot Two
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+state_choropleth(deliquencies_by_state, title="Deliquencies by state",      num_colors=9)+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+### Description Two
+
+>Borrowers state covers aross the 52 states. California, Texas, Illinois,Florida, and Georgia have the highest count of delinquents but it should be taken into consideration that those states have high level of population.   also the more populous. While Florida, Texas and the East coast follow suite. "middle America" has the much lower levels of delinquent borrowers, but this might be due to the factors such as less populous and lower living cost. 
+
+### Plot Three
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=BorrowerRate, y=LoanOriginalAmount,
+      color = factor(DelinquentBorrowers)), data=loan) +
+  scale_x_continuous(limits = c(0, 0.5)) +
+  scale_y_continuous(limits = c(0, 50000)) +
+  geom_point(alpha = 0.1, position = "jitter") +
+  scale_color_discrete(labels = c("Good loan", "Delinquent loan")) +
+  theme(legend.title=element_blank())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+  ggtitle(' Borrower rate vs. Loan amount')+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Description Three
+
+>There is strong evidence that higher borrower rate tend to lead  higher deliquencies. So as investors, adjusting borower rate might increase the chance to collect the money back.
+
+# Reflection
+
+>1. The prospser loans dataset contains over 100k observations with 81 variables spanning across 10 years.The first step before conducting any data analysis is to understand the variables, terminology and general domain knowledge of financial peer-to-peer lending.Second, it is very important to determine which variables to analyze and stick to those variables without drifting too far off.Also there are so many missing values and none specific observations, cleaning is needed for looking into the relationship between some variables.
+
+>2. For loan data, I believe that default risk analysis is a key component to help investors to decide if they could collect the full loan.So any features that could lead to default are worth investigating, In my analysis, I found that borrower rate from investor's aspect and Prosper score from borrower's aspect are strongly relatted to deliquencies. This brought me to investigate more features that could possibly affect borrower rate and prosper score, including monthly income, borrower region, loan purpose, employment status, credit card utilization, available credit, loan amount,home ownership, and debt to income ratio. 
+
+# Limitations
+>The Exploratory Data Analysis strategy is a good way to find some insights of the date through interesting visualizations. However, EDA works better for data set with limited variables. For the Prosper Loan data with 81 variables, it is really time consuming to find out the most intesting features and investigate the correlations between them.  In the future,an useful method to investigate this data could be building predictive models using machine learning. 
+
+# References
+
+- 1. https://www.earthdatascience.org/courses/earth-analytics/time-series-data/summarize-time-series-by-month-in-r/
+- 2. https://stackoverflow.com/questions/33221425/how-do-i-group-my-date-variable-into-month-year-in-r
+- 3. https://www.r-bloggers.com/plot-weekly-or-monthly-totals-in-r/
+- 4. https://github.com/cran/choroplethr/blob/master/R/choropleth.R
+- 5. https://stackoverflow.com/questions/41376522/cregion-value-in-colnamesuser-df-are-not-all-true
